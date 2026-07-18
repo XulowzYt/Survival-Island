@@ -14,15 +14,19 @@ extends CharacterBody3D
 @export var mouse_sensitivity: float = 0.003
 @export var camera_tilt_min: float = -60.0 # Degrees
 @export var camera_tilt_max: float = 50.0  # Degrees
+@export var initial_first_person: bool = false
 
 # --- Performance Cached Node References ---
 @onready var camera_pivot: Node3D = $CameraPivot as Node3D
 @onready var visuals: Node3D = $Visuals as Node3D
+@onready var first_person_cam: Camera3D = $FirstPersonCam as Camera3D
+@onready var third_person_cam: Camera3D = $CameraPivot/ThirdPersonCam as Camera3D
 
 # --- Runtime Architecture States ---
 var is_sprinting: bool = false
 var is_attacking: bool = false
 var is_grounded: bool = true
+var is_first_person: bool = false
 
 # Get the gravity from the project settings to maintain physics consistency
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity") as float
@@ -35,30 +39,33 @@ var _camera_yaw: float = 0.0
 var _camera_pitch: float = 0.0
 
 func _ready() -> void:
-	# Capture the mouse for smooth third-person camera rotation
+	# Capture the mouse for smooth character camera rotation
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	
 	# Synchronize our tracking variables with the editor's initial spawn angles
 	_camera_yaw = camera_pivot.rotation.y
 	_camera_pitch = camera_pivot.rotation.x
+	
+	# Initialize the perspective preference smoothly
+	_set_perspective(initial_first_person)
 
 func _unhandled_input(event: InputEvent) -> void:
 	# 1. Handle Window Focus and Mouse Capture Toggling
-	# Senior Practice: ui_cancel is built-in and mapped to the Escape key by default.
 	if event.is_action_pressed("ui_cancel"):
 		if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		else:
-			# If the mouse was already visible, a second Escape press closes the application safely
 			get_tree().quit()
 			
-	# If the player clicks back onto the screen while the mouse is free, re-capture it
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
-	# 2. Camera Rotation Control Loop
-	# Optimize: Process mouse motion exclusively when captured
+	# 2. Perspective Toggle Action
+	if event.is_action_pressed("toggle_perspective") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		_set_perspective(not is_first_person)
+
+	# 3. Camera Rotation Control Loop
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var mouse_motion := event as InputEventMouseMotion
 		
@@ -73,8 +80,15 @@ func _unhandled_input(event: InputEvent) -> void:
 			deg_to_rad(camera_tilt_max)
 		)
 		
-		# Direct Overwrite Assignment: Keeps Z (roll) completely locked out
-		camera_pivot.rotation = Vector3(_camera_pitch, _camera_yaw, 0.0)
+		if is_first_person:
+			# Apply yaw directly to the player body capsule to drive physical directional basis orientation
+			rotation.y = _camera_yaw
+			# Reset the vertical pivot channels locally relative to the body capsule
+			camera_pivot.rotation = Vector3(_camera_pitch, 0.0, 0.0)
+			first_person_cam.rotation = Vector3(_camera_pitch, 0.0, 0.0)
+		else:
+			# Direct Overwrite Assignment on the pivot node: Keeps Z (roll) completely locked out
+			camera_pivot.rotation = Vector3(_camera_pitch, _camera_yaw, 0.0)
 
 func _physics_process(delta: float) -> void:
 	# 1. Update Grounded State & Apply Gravity
@@ -93,9 +107,10 @@ func _physics_process(delta: float) -> void:
 	# 3. Process Directional Movement Math
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	
-	# Project input vectors relative to the camera's current clean orientation
-	var camera_forward := -camera_pivot.global_transform.basis.z
-	var camera_right := camera_pivot.global_transform.basis.x
+	# Project input vectors relative to whichever camera is actively driving rendering instructions
+	var active_basis_node: Node3D = first_person_cam if is_first_person else camera_pivot
+	var camera_forward := -active_basis_node.global_transform.basis.z
+	var camera_right := active_basis_node.global_transform.basis.x
 	
 	# Flatten vectors completely along the horizontal plane (Y = 0)
 	camera_forward.y = 0.0
@@ -103,8 +118,7 @@ func _physics_process(delta: float) -> void:
 	camera_forward = camera_forward.normalized()
 	camera_right = camera_right.normalized()
 	
-	# Architect Note: input_dir.y is negative when pressing forward. 
-	# We multiply it by -1.0 to convert it to a positive forward driving force.
+	# Process clean directional target fields
 	_move_direction = (camera_right * input_dir.x + camera_forward * -input_dir.y).normalized()
 
 	# 4. Handle Velocity Transitions (Acceleration & Friction)
@@ -118,7 +132,7 @@ func _physics_process(delta: float) -> void:
 
 	var target_velocity := _move_direction * current_target_speed
 	
-	# Squared validation optimizations to dodge heavy square-root lookups
+	# Squared validation optimization avoids square-root processing overhead
 	var blend_weight := acceleration if _move_direction.length_squared() > 0.001 else friction
 	horizontal_velocity = horizontal_velocity.lerp(target_velocity, blend_weight * delta)
 	
@@ -130,12 +144,41 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 	# 6. Smooth Visual Orientation Tracking
-	if horizontal_velocity.length_squared() > 0.1:
-		var target_angle := atan2(-horizontal_velocity.x, -horizontal_velocity.z)
-		visuals.rotation.y = lerp_angle(visuals.rotation.y, target_angle, 10.0 * delta)
+	if is_first_person:
+		# In First-Person, the body's visual mesh must always point exactly forward.
+		visuals.rotation.y = 0.0
+	else:
+		# In Third-Person, smoothly rotate the visual mesh toward the horizontal movement vector.
+		if horizontal_velocity.length_squared() > 0.1:
+			var target_angle := atan2(-horizontal_velocity.x, -horizontal_velocity.z)
+			visuals.rotation.y = lerp_angle(visuals.rotation.y, target_angle, 10.0 * delta)
 
 	# 7. Animation System Data Provider Hooks
 	_update_animation_blending_data()
+
+func _set_perspective(first_person: bool) -> void:
+	is_first_person = first_person
+	
+	if is_first_person:
+		# Activate first-person viewport tracking
+		first_person_cam.current = true
+		
+		# Transfer the cumulative global horizontal yaw directly into the player body
+		rotation.y = _camera_yaw
+		
+		# Reset internal local space transformations to eliminate spatial offset compounding
+		camera_pivot.rotation = Vector3(_camera_pitch, 0.0, 0.0)
+		first_person_cam.rotation = Vector3(_camera_pitch, 0.0, 0.0)
+	else:
+		# Activate third-person viewport tracking
+		third_person_cam.current = true
+		
+		# Transfer the current body rotation back into our tracking yaw channel before detaching control loops
+		_camera_yaw = rotation.y
+		camera_pivot.rotation = Vector3(_camera_pitch, _camera_yaw, 0.0)
+		
+		# Reset parent capsule transform rotation so directional vector projections remain clean
+		rotation.y = 0.0
 
 func _update_animation_blending_data() -> void:
 	# Explicit hook architecture maintained to prevent future state breakdown
