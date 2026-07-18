@@ -1,0 +1,50 @@
+[gd_scene format=3 uid="uid://cgcvm8dajafpi"]
+
+[ext_resource type="Script" uid="uid://ca161dsbj5do7" path="res://Scripts/Player/player.gd" id="1_uvnfx"]
+[ext_resource type="Shader" uid="uid://2vof5flngr6c" path="res://Shaders/toon.gdshader" id="2_a3d8c"]
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_w11f4"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_a3d8c"]
+render_priority = 0
+shader = ExtResource("2_a3d8c")
+shader_parameter/albedo = Color(0.728822, 0.728822, 0.728822, 1)
+shader_parameter/albedo_texture_size = Vector2i(0, 0)
+shader_parameter/point_size = 0.0
+shader_parameter/roughness = 0.0
+shader_parameter/metallic_texture_channel = Vector4(0, 0, 0, 0)
+shader_parameter/specular = 0.0
+shader_parameter/metallic = 0.0
+shader_parameter/uv1_scale = Vector3(0, 0, 0)
+shader_parameter/uv1_offset = Vector3(0, 0, 0)
+shader_parameter/uv2_scale = Vector3(0, 0, 0)
+shader_parameter/uv2_offset = Vector3(0, 0, 0)
+
+[sub_resource type="BoxMesh" id="BoxMesh_3sy6q"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tugb3"]
+albedo_color = Color(0, 0, 0, 1)
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_3sy6q"]
+
+[node name="Player" type="CharacterBody3D" unique_id=1177836357]
+script = ExtResource("1_uvnfx")
+
+[node name="Visuals" type="Node3D" parent="." unique_id=10929354]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Visuals" unique_id=1693399306]
+mesh = SubResource("CapsuleMesh_w11f4")
+surface_material_override/0 = SubResource("ShaderMaterial_a3d8c")
+
+[node name="Eyes" type="MeshInstance3D" parent="Visuals" unique_id=434755268]
+transform = Transform3D(1, 0, 0, 0, 0.19999999, 0, 0, 0, 0.39999998, 0, 0.42300725, -0.40127206)
+mesh = SubResource("BoxMesh_3sy6q")
+surface_material_override/0 = SubResource("StandardMaterial3D_tugb3")
+
+[node name="CameraPivot" type="Node3D" parent="." unique_id=675700467]
+
+[node name="Camera3D" type="Camera3D" parent="CameraPivot" unique_id=343303071]
+transform = Transform3D(1, 0, 0, 0, 0.9961903, 0.08720612, 0, -0.08720612, 0.9961903, 0, 1.9791691, 4.162565)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=589840450]
+shape = SubResource("CapsuleShape3D_3sy6q")
