@@ -1,21 +1,24 @@
 [gd_scene format=3 uid="uid://cgcvm8dajafpi"]
 
 [ext_resource type="Script" uid="uid://ca161dsbj5do7" path="res://Scripts/Player/player.gd" id="1_uvnfx"]
-[ext_resource type="Shader" uid="uid://cw331p8vo7yo5" path="res://Shaders/Toon.gdshader" id="2_a3d8c"]
+[ext_resource type="Shader" uid="uid://c4xc3martsq6d" path="res://Shaders/outline.gdshader" id="2_a3d8c"]
 
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_w11f4"]
-
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_ntgcc"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_a3d8c"]
 render_priority = 0
 shader = ExtResource("2_a3d8c")
-shader_parameter/albedo = Color(0.6255971, 0.6255971, 0.6255971, 1)
-shader_parameter/specular = 0.5
-shader_parameter/roughness = 0.5
-shader_parameter/cuts = 3.0
-shader_parameter/wrap = 0.0
-shader_parameter/steepness = 1.0
-shader_parameter/sway_speed = 1.0
-shader_parameter/sway_strength = 0.1
+shader_parameter/outline_color = Color(0, 0, 0, 1)
+shader_parameter/thickness = 0.02800000133
+shader_parameter/outline_energy = 1.0
+shader_parameter/outline_transparency = 1.0
+shader_parameter/merge_group = false
+shader_parameter/merge_depth_range = 10.0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_uvnfx"]
+render_priority = 12
+next_pass = SubResource("ShaderMaterial_a3d8c")
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_w11f4"]
+material = SubResource("StandardMaterial3D_uvnfx")
 
 [sub_resource type="BoxMesh" id="BoxMesh_3sy6q"]
 
@@ -31,7 +34,6 @@ script = ExtResource("1_uvnfx")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Visuals" unique_id=1693399306]
 mesh = SubResource("CapsuleMesh_w11f4")
-surface_material_override/0 = SubResource("ShaderMaterial_ntgcc")
 
 [node name="Eyes" type="MeshInstance3D" parent="Visuals" unique_id=434755268]
 transform = Transform3D(1, 0, 0, 0, 0.19999999, 0, 0, 0, 0.39999998, 0, 0.42300725, -0.40127206)
